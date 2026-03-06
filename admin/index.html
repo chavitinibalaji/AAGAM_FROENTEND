@@ -1,270 +1,402 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AAGAM Admin Dashboard</title>
-    <link rel="stylesheet" href="css/admin.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AAGAM Admin • Quick Commerce Dashboard</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #6b46c1;
+      --primary-dark: #553c9a;
+      --accent: #f6ad55;
+      --danger: #e53e3e;
+      --success: #38a169;
+      --warning: #d69e2e;
+      --info: #3182ce;
+      --gray: #718096;
+      --light: #f7fafc;
+      --white: white;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--light);
+      color: #2d3748;
+      min-height: 100vh;
+    }
+    .layout { display: flex; }
+    .sidebar {
+      width: 240px;
+      background: var(--white);
+      border-right: 1px solid #e2e8f0;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      transition: width 0.3s;
+    }
+    .sidebar.collapsed { width: 80px; }
+    .sidebar-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; text-align: center; }
+    .sidebar-header h2 { color: var(--primary); font-size: 1.5rem; }
+    .nav-list { padding: 1rem 0; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 0.85rem 1.5rem;
+      color: var(--gray);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: #f0f4ff;
+      color: var(--primary);
+    }
+    .nav-item span.icon { margin-right: 1rem; font-size: 1.3rem; }
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      padding: 1.5rem;
+      transition: margin-left 0.3s;
+    }
+    .main.collapsed { margin-left: 80px; }
+    .topbar {
+      background: var(--white);
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    .menu-toggle { font-size: 1.6rem; background: none; border: none; cursor: pointer; color: var(--primary); }
+    .user-area { display: flex; align-items: center; gap: 1.5rem; }
+    .notification { position: relative; font-size: 1.4rem; cursor: pointer; }
+    .badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: var(--danger);
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 50%;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--white);
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .stat-icon { font-size: 2.8rem; margin-bottom: 0.6rem; }
+    .stat-value { font-size: 2.2rem; font-weight: 700; color: var(--primary); }
+    .stat-label { color: var(--gray); font-size: 0.95rem; }
+    .chart-container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--white);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    th { background: #f8f9fc; font-weight: 600; }
+    .status-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .status-pending     { background:#fefcbf; color:#d69e2e; }
+    .status-confirmed   { background:#d4edda; color:#276749; }
+    .status-preparing   { background:#bee3f8; color:#3182ce; }
+    .status-outfordelivery { background:#fefcbf; color:#d69e2e; }
+    .status-delivered   { background:#c6f6d5; color:#38a169; }
+    .action-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-right: 6px;
+    }
+    .btn-confirm { background: var(--success); color: white; }
+    .btn-confirm:hover { background: #2f855a; }
+    .success-message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--success);
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: all 0.4s ease;
+    }
+    .success-message.show { opacity: 1; transform: translateY(0); }
+    .connection-status {
+      font-size: 0.9rem;
+      color: var(--gray);
+      margin-left: 1rem;
+    }
+    .connection-status.online  { color: var(--success); }
+    .connection-status.offline { color: var(--danger); }
+    @media (max-width: 768px) {
+      .sidebar { width: 80px; }
+      .main { margin-left: 80px; }
+      .sidebar-header h2, .nav-item .text { display: none; }
+    }
+  </style>
 </head>
 <body>
-    <div class="admin-container">
-        <!-- Sidebar -->
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <h2>AAGAM Admin</h2>
-            </div>
-            <nav class="sidebar-nav">
-                <a href="#" class="nav-item active" data-page="dashboard">
-                    <span class="icon">📊</span> Dashboard
-                </a>
-                <a href="#" class="nav-item" data-page="products">
-                    <span class="icon">📦</span> Products
-                </a>
-                <a href="#" class="nav-item" data-page="orders">
-                    <span class="icon">📋</span> Orders
-                </a>
-                <a href="#" class="nav-item" data-page="inventory">
-                    <span class="icon">📈</span> Inventory
-                </a>
-                <a href="#" class="nav-item" data-page="users">
-                    <span class="icon">👥</span> Users
-                </a>
-            </nav>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><h2>AAGAM</h2></div>
+    <nav class="nav-list">
+      <a href="#" class="nav-item active" data-page="dashboard"><span class="icon">📊</span> <span class="text">Dashboard</span></a>
+      <a href="orders.html" class="nav-item" data-page="orders"><span class="icon">📦</span> <span class="text">Live Orders</span></a>
+      <a href="products.html" class="nav-item"><span class="icon">🛒</span> <span class="text">Products</span></a>
+      <a href="inventory.html" class="nav-item"><span class="icon">📈</span> <span class="text">Inventory</span></a>
+    </nav>
+  </aside>
+
+  <main class="main" id="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menuToggle">☰</button>
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="user-area">
+        <div class="notification">🔔 <span class="badge" id="alertCount">0</span></div>
+        <div>Admin • Anakapalli 
+          <span class="connection-status offline" id="connStatus">Connecting...</span>
         </div>
+      </div>
+    </header>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Topbar -->
-            <div class="topbar">
-                <div class="topbar-left">
-                    <button class="menu-toggle" id="menuToggle">☰</button>
-                    <h1 id="pageTitle">Dashboard</h1>
-                </div>
-                <div class="topbar-right">
-                    <div class="notifications">
-                        <span class="icon">🔔</span>
-                        <span class="badge">3</span>
-                    </div>
-                    <div class="user-profile">
-                        <span class="icon">👤</span>
-                        <span>Admin</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard Content -->
-            <div class="content" id="content">
-                <!-- Dashboard Overview -->
-                <div class="page" id="dashboardPage">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon">📦</div>
-                            <div class="stat-info">
-                                <h3 id="totalProducts">1,234</h3>
-                                <p>Total Products</p>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📋</div>
-                            <div class="stat-info">
-                                <h3 id="totalOrders">567</h3>
-                                <p>Total Orders</p>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">💰</div>
-                            <div class="stat-info">
-                                <h3 id="totalRevenue">₹45,678</h3>
-                                <p>Total Revenue</p>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">👥</div>
-                            <div class="stat-info">
-                                <h3 id="totalUsers">890</h3>
-                                <p>Total Users</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="charts-section">
-                        <div class="chart-card">
-                            <h3>Sales Overview</h3>
-                            <canvas id="salesChart"></canvas>
-                        </div>
-                        <div class="chart-card">
-                            <h3>Order Status</h3>
-                            <canvas id="orderStatusChart"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="recent-activity">
-                        <h3>Recent Activity</h3>
-                        <div class="activity-list" id="activityList">
-                            <!-- Activity items will be populated by JS -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Products Page -->
-                <div class="page hidden" id="productsPage">
-                    <div class="page-header">
-                        <h2>Product Management</h2>
-                        <button class="btn-primary" id="addProductBtn">Add New Product</button>
-                    </div>
-                    <div class="products-table">
-                        <table id="productsTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Category</th>
-                                    <th>Price</th>
-                                    <th>Stock</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsTableBody">
-                                <!-- Products will be populated by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Orders Page -->
-                <div class="page hidden" id="ordersPage">
-                    <div class="page-header">
-                        <h2>Order Management</h2>
-                        <div class="filters">
-                            <select id="orderStatusFilter">
-                                <option value="all">All Orders</option>
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="orders-table">
-                        <table id="ordersTable">
-                            <thead>
-                                <tr>
-                                    <th>Order ID</th>
-                                    <th>Customer</th>
-                                    <th>Items</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ordersTableBody">
-                                <!-- Orders will be populated by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Inventory Page -->
-                <div class="page hidden" id="inventoryPage">
-                    <div class="page-header">
-                        <h2>Inventory Management</h2>
-                        <button class="btn-primary" id="updateStockBtn">Update Stock</button>
-                    </div>
-                    <div class="inventory-grid" id="inventoryGrid">
-                        <!-- Inventory items will be populated by JS -->
-                    </div>
-                </div>
-
-                <!-- Users Page -->
-                <div class="page hidden" id="usersPage">
-                    <div class="page-header">
-                        <h2>User Management</h2>
-                    </div>
-                    <div class="users-table">
-                        <table id="usersTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <!-- Users will be populated by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="content-page active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-value" id="todayOrders">0</div>
+          <div class="stat-label">Today's Orders</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon">₹</div>
+          <div class="stat-value" id="todayRevenue">₹0</div>
+          <div class="stat-label">Revenue Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value" id="totalCustomers">0</div>
+          <div class="stat-label">Total Customers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-value" id="pendingOrders">0</div>
+          <div class="stat-label">Pending Orders</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h2>Sales Overview</h2>
+        <canvas id="salesChart" height="140"></canvas>
+      </div>
     </div>
 
-    <!-- Modals -->
-    <!-- Product Modal -->
-    <div class="modal" id="productModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="productModalTitle">Add Product</h3>
-                <span class="close" id="closeProductModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="productForm">
-                    <div class="form-group">
-                        <label for="productName">Product Name</label>
-                        <input type="text" id="productName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productCategory">Category</label>
-                        <select id="productCategory" required>
-                            <option value="">Select Category</option>
-                            <option value="grocery">Grocery</option>
-                            <option value="fruit">Fruits</option>
-                            <option value="veg">Vegetables</option>
-                            <option value="dairy">Dairy</option>
-                            <option value="snack">Snacks</option>
-                            <option value="beauty">Beauty</option>
-                            <option value="toys">Toys</option>
-                            <option value="student">Student Needs</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="productPrice">Price (₹)</label>
-                        <input type="number" id="productPrice" step="0.01" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productMrp">MRP (₹)</label>
-                        <input type="number" id="productMrp" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label for="productWeight">Weight/Quantity</label>
-                        <input type="text" id="productWeight" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productImage">Image URL</label>
-                        <input type="url" id="productImage" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productStock">Stock Quantity</label>
-                        <input type="number" id="productStock" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productDescription">Description</label>
-                        <textarea id="productDescription"></textarea>
-                    </div>
-                    <button type="submit" class="btn-primary">Save Product</button>
-                </form>
-            </div>
-        </div>
-    </div>
 
-    <script src="js/admin-auth.js"></script>
-    <script src="js/admin-products.js"></script>
-    <script src="js/admin-orders.js"></script>
-    <script src="js/admin-api.js"></script>
+<script>
+// ────────────────────────────────────────────────
+// Socket.IO Setup – only real backend updates
+// ────────────────────────────────────────────────
+const socket = io("http://localhost:5000", {
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+  timeout: 20000,
+  autoConnect: true
+});
+
+let salesChart;
+const ctx = document.getElementById('salesChart')?.getContext('2d');
+if (ctx) {
+  salesChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [{
+        label: 'Sales (₹)',
+        data: [0,0,0,0,0,0,0],
+        borderColor: 'rgb(107, 70, 193)',
+        backgroundColor: 'rgba(107, 70, 193, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+// Connection status
+socket.on("connect", () => {
+  document.getElementById("connStatus").textContent = "Online";
+  document.getElementById("connStatus").className = "connection-status online";
+});
+
+socket.on("disconnect", () => {
+  document.getElementById("connStatus").textContent = "Disconnected";
+  document.getElementById("connStatus").className = "connection-status offline";
+});
+
+// ────────────────────────────────────────────────
+// Real-time Events from Backend
+// ────────────────────────────────────────────────
+socket.on("initialOrders", (orders) => {
+  document.getElementById("ordersTable").innerHTML = "";
+  orders.forEach(addOrUpdateOrderRow);
+  updateDashboardFromOrders(orders);
+});
+
+socket.on("newOrder", (order) => {
+  addOrUpdateOrderRow(order);
+  incrementTodayOrders();
+  addToRevenue(order.amount);
+  incrementPendingIfNeeded(order);
+  updateNotification();
+});
+
+socket.on("orderUpdated", (order) => {
+  addOrUpdateOrderRow(order);
+  updateDashboardFromOrders([order]); // partial update
+});
+
+// ────────────────────────────────────────────────
+// Order Row (add or replace)
+// ────────────────────────────────────────────────
+function addOrUpdateOrderRow(order) {
+  const tbody = document.getElementById("ordersTable");
+  let row = document.querySelector(`tr[data-order-id="${order.id}"]`);
+  
+  const statusClass = `status-${(order.status || "pending").toLowerCase().replace(/\s+/g, '')}`;
+  const actionHTML = (order.status || "").toLowerCase() === "pending" 
+    ? `<button class="action-btn btn-confirm" onclick="confirmOrder('${order.id}')">Confirm</button>`
+    : "—";
+
+  const html = `
+    <tr data-order-id="${order.id}">
+      <td>#${order.id}</td>
+      <td>${order.customer || "—"}</td>
+      <td>${order.store || "—"}</td>
+      <td>₹${Number(order.amount || 0).toLocaleString("en-IN")}</td>
+      <td><span class="status-pill ${statusClass}" id="status-${order.id}">${order.status || "Pending"}</span></td>
+      <td>${order.time || new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</td>
+      <td>${actionHTML}</td>
+    </tr>
+  `;
+
+  if (row) {
+    row.outerHTML = html;
+  } else {
+    tbody.insertAdjacentHTML("afterbegin", html);
+  }
+}
+
+window.confirmOrder = function(orderId) {
+  socket.emit("confirmOrder", { orderId });
+  
+  // Optimistic UI update
+  const statusEl = document.getElementById(`status-${orderId}`);
+  if (statusEl) {
+    statusEl.className = "status-pill status-confirmed";
+    statusEl.textContent = "Confirmed";
+  }
+  const row = document.querySelector(`tr[data-order-id="${orderId}"]`);
+  if (row) row.cells[6].innerHTML = "—";
+
+  document.getElementById("successToast").classList.add("show");
+  setTimeout(() => document.getElementById("successToast").classList.remove("show"), 2800);
+};
+
+// ────────────────────────────────────────────────
+// Dashboard Updates (only from real data)
+// ────────────────────────────────────────────────
+function incrementTodayOrders() {
+  const el = document.getElementById("todayOrders");
+  el.textContent = Number(el.textContent) + 1;
+}
+
+function addToRevenue(amount) {
+  const el = document.getElementById("todayRevenue");
+  let current = parseFloat(el.textContent.replace(/[^0-9.]/g, '')) || 0;
+  el.textContent = "₹" + (current + Number(amount || 0)).toLocaleString("en-IN");
+}
+
+function incrementPendingIfNeeded(order) {
+  if ((order.status || "pending").toLowerCase() === "pending") {
+    const el = document.getElementById("pendingOrders");
+    el.textContent = Number(el.textContent) + 1;
+  }
+}
+
+function updateNotification() {
+  const badge = document.getElementById("alertCount");
+  badge.textContent = Number(badge.textContent || 0) + 1;
+}
+
+function updateDashboardFromOrders(orders) {
+  // You can make this more accurate if backend sends summary object instead
+  const pending = orders.filter(o => (o.status || "").toLowerCase() === "pending").length;
+  document.getElementById("pendingOrders").textContent = pending;
+  document.getElementById("alertCount").textContent = pending;
+}
+
+// ────────────────────────────────────────────────
+// Navigation
+// ────────────────────────────────────────────────
+document.getElementById("menuToggle").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("collapsed");
+  document.getElementById("main").classList.toggle("collapsed");
+});
+
+document.querySelectorAll(".nav-item").forEach(item => {
+  item.addEventListener("click", e => {
+    if (item.getAttribute("href") !== "#") return; // allow external navigation
+    e.preventDefault();
+    document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
+    item.classList.add("active");
+    document.querySelectorAll(".content-page").forEach(p => p.style.display = "none");
+    document.getElementById(item.dataset.page + "Page").style.display = "block";
+    document.getElementById("pageTitle").textContent = item.querySelector(".text")?.textContent.trim() || "Dashboard";
+  });
+});
+</script>
 </body>
 </html>
